@@ -24,9 +24,28 @@ import subprocess
 
 import argparse
 import datetime
+import readline
 
-def trunc_datetime(line):
+
+def trunc_datetime2(line):
+     global auto_complection
+     year = line.split(' ')[0].split('/')[2]
+     month = Months[line.split(' ')[0].split('/')[0]]
+     day = line.split(' ')[0].split('/')[1]
+     hour = line.split(' ')[1].split(':')[0]
+     minute = line.split(' ')[1].split(':')[1]
+     second = line.split(' ')[1].split(':')[2]
+     return datetime.datetime(
+        int(year),
+        int(month),
+        int(day),
+        int(hour),
+        int(minute),
+        int(second))
+    
+def trunc_datetime(line,save):
     global Months
+    global auto_complete
     data = line.split()
     year = data[4]
     month = Months[data[1]]
@@ -34,6 +53,10 @@ def trunc_datetime(line):
     hour = data[3].split(':')[0]
     minute = data[3].split(':')[1]
     second = data[3].split(':')[2]
+    # Nov/4/2019 18:55:59
+    if save:
+        date = data[1] + '/' + day + '/' + year + ' ' + hour + ':' + minute + ':' +second
+        auto_complete.append(date)
     return datetime.datetime(
         int(year),
         int(month),
@@ -43,10 +66,10 @@ def trunc_datetime(line):
         int(second))
 
 def sort_func(line):
-    return trunc_datetime(line)
+    return trunc_datetime(line,True)
 
 def sort_func2(arr):
-    return trunc_datetime(arr[0])
+    return trunc_datetime(arr[0],False)
 
 def process():
     global id_map
@@ -67,6 +90,7 @@ def process():
         id_map[key] = sorted(id_map[key], key=sort_func)
         rc.append(id_map[key])
     rc = sorted(rc, key=sort_func2)
+   
 
 def check_two_date(date1, date2):
    global rc
@@ -76,23 +100,11 @@ def check_two_date(date1, date2):
    for arr in rc:
        index += 1
        first = arr[0].strip()
-       first_time = trunc_datetime(first)
+       first_time = trunc_datetime(first,False)
        if date1 <= first_time and first_time <= date2:
             writer.append(index)
        if first_time > date2:
             break
-
-def check_one_date(date1):
-   global rc
-   global writer
-   result = []
-   index = -1
-   for arr in rc:
-       index += 1
-       first = arr[0].strip()
-       first_time = trunc_datetime(first)
-       if date1 <= first_time:
-            writer.append(index)
 
 def write_file():
     global writer
@@ -126,10 +138,25 @@ def check_file(name):
           raise argparse.ArgumentTypeError("%s does not exist" % name)
     return name
 
+def completer(text,state):
+    global auto_complete 
+   # options = [cmd for cmd in auto_complete if cmd.startswith(text)]
+    options = [cmd for cmd in auto_complete if cmd.startswith(text)]
+    if state < len(options):
+        return options[state]
+    else:
+        return None
+def find_first_match(user_input):
+      global auto_complete
+      for date in auto_complete:
+          if date.startswith(user_input):
+             return date
+      return None
 writer = []
 rc = []
 content = []
 id_map = {}
+auto_complete = []
 session_num = 0
 Months = {
     'Jan': 1,
@@ -163,42 +190,84 @@ try:
     content = [x.strip() for x in content]
     process()
     print 'Number of video sessions: ' + str(session_num)
+    start_time = rc[0][0].split()[1] + '/' \
+        + rc[0][0].split()[2] + '/' + rc[0][0].split()[4] + ' ' \
+        + rc[0][0].split()[3]
     print 'Earliest time is ' + rc[0][0].split()[1] + '/' \
         + rc[0][0].split()[2] + '/' + rc[0][0].split()[4] + ' ' \
         + rc[0][0].split()[3]
-
+    end_time = rc[-1][0].split()[1] + '/' \
+        + rc[-1][0].split()[2] + '/' + rc[-1][0].split()[4] + ' ' \
+        + rc[-1][0].split()[3]
     print 'Lastest time is ' + rc[-1][0].split()[1] + '/' \
         + rc[-1][0].split()[2] + '/' + rc[-1][0].split()[4] + ' ' \
         + rc[-1][0].split()[3]
-    print 'Please type a date range'
-    date_range = sys.stdin.readline()
-    type_plot = d['p'][0]
-    command = ''
-    if type_plot == 'jitter' or type_plot == 'rtt':
-        command = 'python session-avg-' + type_plot + '.py'
-    else:
-        command = 'python session-' + type_plot + '.py'
-    judge = False
-    if len(date_range.strip()) == 0:
-        print 'print all plot'
-        judge = True
-        command = command + ' ' + file_name
-    elif date_range.strip().find('-') == -1:
-        print 'one date specific'
-        check_one_date(convert_date(date_range))
-        write_file()
-        command = command + ' qualified_data.txt'
-    else:
-        print 'two date specific'
-        check_two_date(convert_date(date_range.strip().split('-')[0]),
-                       convert_date(date_range.strip().split('-')[1]))
-        write_file()
-        command = command + ' qualified_data.txt'
-    process = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE)
-    output, err = process.communicate()
-    print output
-    if judge == False:
-        os.remove('qualified_data.txt')
+    readline.set_completer_delims('\t\n')
+    readline.parse_and_bind("set show-all-if-unmodified on")
+    readline.parse_and_bind("set completion-query-items 10000")
+    readline.parse_and_bind("tab: complete")
+    readline.set_completer(completer)
+    auto_complete = sorted(auto_complete, key=trunc_datetime2)
+    while (True):
+        print 'Please type a date range'
+        print 'Start date/time:'
+        start = raw_input()
+        if start == 'exit':
+            break;
+        if len(start) != 0:
+            start_time = start
+        print 'End date/time:'
+        end = raw_input()
+        if end == 'exit':
+            break;
+        if len(end)!= 0:
+            end_time = end
+        type_plot = d['p'][0]
+        command = ''
+        if type_plot == 'jitter' or type_plot == 'rtt':
+            command = 'python session-avg-' + type_plot + '.py'
+        else:
+            command = 'python session-' + type_plot + '.py'
+        judge = False
+        #judge format in here
+       # if start_time.count('/')!=2 or start_time.count(':')!=2:
+        rv = find_first_match(start_time)
+           
+        if rv == None:
+           print "Warning there is no matching options"
+           continue
+        start_time = rv
+        
+        #if end_time.count('/')!=2 or end_time.count(':')!=2:
+        rv = find_first_match(end_time)
+        if rv == None:
+           print "Warning there is no matching options"
+           continue;
+        end_time = rv
+        print 'Start time is '+start_time + ' End time is '+ end_time
+        if len(start) == 0 and len(end) == 0:
+            print 'print all plot'
+            judge = True
+            command = command + ' ' + file_name
+        # we need to have 2 situtation which means either start or and end is blank
+        elif len(start) == 0 or len(end) == 0:
+            print 'one date specific'
+            #check_one_date(convert_date(date_range))
+            check_two_date(convert_date(start_time),
+                       convert_date(end_time))
+            write_file()
+            command = command + ' qualified_data.txt'
+        else:
+            print 'two date specific'
+            check_two_date(convert_date(start_time),
+                       convert_date(end_time))
+            write_file()
+            command = command + ' qualified_data.txt'
+        process = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE)
+        output, err = process.communicate()
+        print output
+        if judge == False:
+            os.remove('qualified_data.txt')
 except ValueError:
     print 'Your input date is invalid; hour should between 0-23, minute and '+\
     'second should between 0-59, day should be 1-30 or 31 '
