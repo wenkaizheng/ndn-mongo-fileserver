@@ -139,9 +139,11 @@ def check_file(name):
     return name
 
 def completer(text,state):
-    global auto_complete 
+    global auto_complete
+    global options
    # options = [cmd for cmd in auto_complete if cmd.startswith(text)]
-    options = [cmd for cmd in auto_complete if cmd.startswith(text)]
+    if state == 0:
+       options = [cmd for cmd in auto_complete if cmd.startswith(text)]
     if state < len(options):
         return options[state]
     else:
@@ -158,6 +160,7 @@ content = []
 id_map = {}
 auto_complete = []
 session_num = 0
+options = []
 Months = {
     'Jan': 1,
     'Feb': 2,
@@ -174,15 +177,12 @@ Months = {
 
 try:
     parser = argparse.ArgumentParser(prog='arrange-data.py')
-    parser.add_argument('-p', choices=['jitter', 'rebuffers', 'rtt','retx','timeout','nack'], metavar='Valid Options',
-                        nargs=1,help='Your choice of options is jitter, rebuffers, or rtt')
+    parser.add_argument('-p', choices=['jitter', 'rebuffers', 'rtt','retx','timeout','nack','segments'], metavar='Valid Options',
+                        nargs=1,help='Your choice of options is jitter, rebuffers, or rtt',required =False)
     parser.add_argument('i', metavar='Input File', nargs=1, type = check_file,
                         help='You need to have a input file for drawing plots')
     result = parser.parse_args(sys.argv[1:])
-    if result.p ==None:
-        print 'You miss Valid Options'
-        parser.print_help(sys.stderr)
-        sys.exit(1)
+   
     d = vars(result)
     file_name = d['i'][0]
     with open(file_name) as f:
@@ -208,8 +208,13 @@ try:
     readline.parse_and_bind("tab: complete")
     readline.set_completer(completer)
     auto_complete = sorted(auto_complete, key=trunc_datetime2)
+    from_argu = True
     while (True):
         print 'Please type a date range'
+        if result.p ==None:
+           print 'You choose one of the network charaistics from jitter, rebuffers, rtt,retx,timeout,nack,segments'
+           type_plot = raw_input()
+           from_argu = False
         print 'Start date/time:'
         start = raw_input()
         if start == 'exit':
@@ -222,7 +227,8 @@ try:
             break;
         if len(end)!= 0:
             end_time = end
-        type_plot = d['p'][0]
+        if from_argu:
+           type_plot = d['p'][0]
         command = ''
         if type_plot == 'jitter' or type_plot == 'rtt':
             command = 'python session-avg-' + type_plot + '.py'
