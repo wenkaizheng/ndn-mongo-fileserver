@@ -29,6 +29,7 @@ import readline
 
 def trunc_datetime2(line):
      global auto_complection
+     global Months
      year = line.split(' ')[0].split('/')[2]
      month = Months[line.split(' ')[0].split('/')[0]]
      day = line.split(' ')[0].split('/')[1]
@@ -42,6 +43,7 @@ def trunc_datetime2(line):
         int(hour),
         int(minute),
         int(second))
+
     
 def trunc_datetime(line,save):
     global Months
@@ -55,7 +57,10 @@ def trunc_datetime(line,save):
     second = data[3].split(':')[2]
     # Nov/4/2019 18:55:59
     if save:
-        date = data[1] + '/' + day + '/' + year + ' ' + hour + ':' + minute + ':' +second
+        temp = ''
+        for i in range (0,len(data[1])):
+                        temp = temp + data[1][i].lower() if i == 0 else temp + data[1][i]
+        date = temp + '/' + day + '/' + year + ' ' + hour + ':' + minute + ':' +second
         auto_complete.append(date)
     return datetime.datetime(
         int(year),
@@ -66,10 +71,10 @@ def trunc_datetime(line,save):
         int(second))
 
 def sort_func(line):
-    return trunc_datetime(line,True)
+    return trunc_datetime(line,False)
 
 def sort_func2(arr):
-    return trunc_datetime(arr[0],False)
+    return trunc_datetime(arr[0],True)
 
 def process():
     global id_map
@@ -79,18 +84,18 @@ def process():
     for line in content:
         lines = line.split('session%3D')[1]
         session_id = lines.split('/')[0]
-
         if session_id not in id_map:
             id_map[session_id] = []
             id_map[session_id].append(line)
         else:
             id_map[session_id].append(line)
+            
     session_num = len(id_map)
     for key in id_map:
         id_map[key] = sorted(id_map[key], key=sort_func)
         rc.append(id_map[key])
     rc = sorted(rc, key=sort_func2)
-   
+    
 
 def check_two_date(date1, date2):
    global rc
@@ -100,6 +105,7 @@ def check_two_date(date1, date2):
    for arr in rc:
        index += 1
        first = arr[0].strip()
+       #print first
        first_time = trunc_datetime(first,False)
        if date1 <= first_time and first_time <= date2:
             writer.append(index)
@@ -143,17 +149,36 @@ def completer(text,state):
     global options
    # options = [cmd for cmd in auto_complete if cmd.startswith(text)]
     if state == 0:
-       options = [cmd for cmd in auto_complete if cmd.startswith(text)]
+       options = [cmd for cmd in auto_complete if cmd.startswith(text.lower())]
     if state < len(options):
         return options[state]
     else:
         return None
+def network_completer(text,state):
+    global network_options
+    global network 
+   # options = [cmd for cmd in auto_complete if cmd.startswith(text)]
+    if state == 0:
+       network = [cmd for cmd in network_options if cmd.startswith(text.lower())]
+    if state < len(network):
+        return network[state]
+    else:
+        return None
+     
 def find_first_match(user_input):
       global auto_complete
       for date in auto_complete:
           if date.startswith(user_input):
-             return date
+               return date
       return None
+def case(date):
+     if len(date) == 4:
+          if date.lower() == 'exit':
+               return 'exit'
+          return date.lower()
+     else:
+          return date.lower()
+
 writer = []
 rc = []
 content = []
@@ -162,41 +187,54 @@ auto_complete = []
 session_num = 0
 options = []
 Months = {
+    'jan': 1,
     'Jan': 1,
+    'feb': 2,
     'Feb': 2,
+    'mar': 3,
     'Mar': 3,
+    'apr': 4,
     'Apr': 4,
+    'may': 5,
     'May': 5,
+    'jun': 6,
     'Jun': 6,
+    'jul': 7,
     'Jul': 7,
+    'aug': 8,
     'Aug': 8,
+    'sep': 9,
     'Sep': 9,
+    'oct': 10,
     'Oct': 10,
+    'nov': 11,
     'Nov': 11,
+    'dec': 12,
     'Dec': 12}
+network_options = ['jitter', 'rebuffers', 'rtt','retx','timeout','nack','segments']
+network = []
 
-try:
-    parser = argparse.ArgumentParser(prog='arrange-data.py')
-    parser.add_argument('-p', choices=['jitter', 'rebuffers', 'rtt','retx','timeout','nack','segments'], metavar='Valid Options',
+parser = argparse.ArgumentParser(prog='arrange-data.py')
+parser.add_argument('-p', choices=['jitter', 'rebuffers', 'rtt','retx','timeout','nack','segments'], metavar='Valid Options',
                         nargs=1,help='Your choice of options is jitter, rebuffers, or rtt',required =False)
-    parser.add_argument('i', metavar='Input File', nargs=1, type = check_file,
+parser.add_argument('i', metavar='Input File', nargs=1, type = check_file,
                         help='You need to have a input file for drawing plots')
-    result = parser.parse_args(sys.argv[1:])
+result = parser.parse_args(sys.argv[1:])
    
-    d = vars(result)
-    file_name = d['i'][0]
-    with open(file_name) as f:
-        content = f.readlines()
+d = vars(result)
+file_name = d['i'][0]
+with open(file_name) as f:
+    content = f.readlines()
     content = [x.strip() for x in content]
     process()
     print 'Number of video sessions: ' + str(session_num)
-    start_time = rc[0][0].split()[1] + '/' \
+    start_times = rc[0][0].split()[1] + '/' \
         + rc[0][0].split()[2] + '/' + rc[0][0].split()[4] + ' ' \
         + rc[0][0].split()[3]
     print 'Earliest time is ' + rc[0][0].split()[1] + '/' \
         + rc[0][0].split()[2] + '/' + rc[0][0].split()[4] + ' ' \
         + rc[0][0].split()[3]
-    end_time = rc[-1][0].split()[1] + '/' \
+    end_times = rc[-1][0].split()[1] + '/' \
         + rc[-1][0].split()[2] + '/' + rc[-1][0].split()[4] + ' ' \
         + rc[-1][0].split()[3]
     print 'Lastest time is ' + rc[-1][0].split()[1] + '/' \
@@ -206,27 +244,36 @@ try:
     readline.parse_and_bind("set show-all-if-unmodified on")
     readline.parse_and_bind("set completion-query-items 10000")
     readline.parse_and_bind("tab: complete")
-    readline.set_completer(completer)
     auto_complete = sorted(auto_complete, key=trunc_datetime2)
     from_argu = True
-    while (True):
-        print 'Please type a date range'
+
+while (True):
+    try:
+        start_time = ''
+        end_time = ''
         if result.p ==None:
-           print 'You choose one of the network charaistics from jitter, rebuffers, rtt,retx,timeout,nack,segments'
+           print 'You can choose one of the network charaistics from jitter, rebuffers, rtt,retx,timeout,nack,segments'
+           readline.set_completer(network_completer)
            type_plot = raw_input()
            from_argu = False
+        readline.set_completer(completer)
+        print 'Please type a date range'
         print 'Start date/time:'
         start = raw_input()
+        start = case(start)
         if start == 'exit':
             break;
         if len(start) != 0:
             start_time = start
+        else: start_time = start_times
         print 'End date/time:'
         end = raw_input()
+        end = case(end)
         if end == 'exit':
             break;
         if len(end)!= 0:
             end_time = end
+        else : end_time = end_times
         if from_argu:
            type_plot = d['p'][0]
         command = ''
@@ -236,20 +283,19 @@ try:
             command = 'python session-' + type_plot + '.py'
         judge = False
         #judge format in here
-       # if start_time.count('/')!=2 or start_time.count(':')!=2:
-        rv = find_first_match(start_time)
-           
-        if rv == None:
-           print "Warning there is no matching options"
-           continue
-        start_time = rv
+        if start_time.count('/')!=2 or start_time.count(':')!=2:
+             rv = find_first_match(start_time)
+             if rv == None:
+                print "Warning there is no matching options"
+                continue
+             start_time = rv
         
-        #if end_time.count('/')!=2 or end_time.count(':')!=2:
-        rv = find_first_match(end_time)
-        if rv == None:
-           print "Warning there is no matching options"
-           continue;
-        end_time = rv
+        if end_time.count('/')!=2 or end_time.count(':')!=2:
+              rv = find_first_match(end_time)
+              if rv == None:
+                print "Warning there is no matching options"
+                continue;
+              end_time = rv
         print 'Start time is '+start_time + ' End time is '+ end_time
         if len(start) == 0 and len(end) == 0:
             print 'print all plot'
@@ -274,11 +320,14 @@ try:
         print output
         if judge == False:
             os.remove('qualified_data.txt')
-except ValueError:
-    print 'Your input date is invalid; hour should between 0-23, minute and '+\
-    'second should between 0-59, day should be 1-30 or 31 '
-except IndexError:
-    print 'Your input is missing some part and correct date should' + \
-    'be month/day/year hour:minute:second'
-except KeyError:
-    print 'Use valid months please such as Nov,Dec'
+    except ValueError:
+         print 'Your input date is invalid; hour should between 0-23, minute and '+\
+        'second should between 0-59, day should be 1-30 or 31 '
+         continue
+    except IndexError:
+        print 'Your input is missing some part and correct date should' + \
+       'be month/day/year hour:minute:second'
+        continue
+    except KeyError:
+        print 'Use valid months please such as Nov,Dec'
+        continue
