@@ -31,7 +31,9 @@ def trunc_datetime2(line):
      global auto_complection
      global Months
      year = line.split(' ')[0].split('/')[2]
-     month = Months[line.split(' ')[0].split('/')[0]]
+     months_small = line.split(' ')[0].split('/')[0]
+     months_index = months_small[0].upper()+months_small[1]+months_small[2]
+     month = Months[months_index]
      day = line.split(' ')[0].split('/')[1]
      hour = line.split(' ')[1].split(':')[0]
      minute = line.split(' ')[1].split(':')[1]
@@ -59,7 +61,7 @@ def trunc_datetime(line,save):
     if save:
         temp = ''
         for i in range (0,len(data[1])):
-                        temp = temp + data[1][i].lower() if i == 0 else temp + data[1][i]
+            temp = temp + data[1][i].lower() if i == 0 else temp + data[1][i]
         date = temp + '/' + day + '/' + year + ' ' + hour + ':' + minute + ':' +second
         auto_complete.append(date)
     return datetime.datetime(
@@ -71,10 +73,10 @@ def trunc_datetime(line,save):
         int(second))
 
 def sort_func(line):
-    return trunc_datetime(line,False)
+    return trunc_datetime(line, False)
 
 def sort_func2(arr):
-    return trunc_datetime(arr[0],True)
+    return trunc_datetime(arr[0], True)
 
 def process():
     global id_map
@@ -96,7 +98,6 @@ def process():
         rc.append(id_map[key])
     rc = sorted(rc, key=sort_func2)
     
-
 def check_two_date(date1, date2):
    global rc
    global writer
@@ -127,7 +128,9 @@ def convert_date(line):
     global Months
     line = line.strip().split()
     year = line[0].split('/')[2]
-    month = Months[line[0].split('/')[0]]
+    months_small = line[0].split('/')[0]
+    months_index = months_small[0].upper()+ months_small[1] + months_small[2]
+    month = Months[months_index]
     day = line[0].split('/')[1]
     hour = line[1].split(':')[0]
     minute = line[1].split(':')[1]
@@ -169,7 +172,7 @@ def find_first_match(user_input):
       global auto_complete
       for date in auto_complete:
           if date.startswith(user_input):
-               return date
+             return date
       return None
 def case(date):
      if len(date) == 4:
@@ -187,29 +190,17 @@ auto_complete = []
 session_num = 0
 options = []
 Months = {
-    'jan': 1,
     'Jan': 1,
-    'feb': 2,
     'Feb': 2,
-    'mar': 3,
     'Mar': 3,
-    'apr': 4,
     'Apr': 4,
-    'may': 5,
     'May': 5,
-    'jun': 6,
     'Jun': 6,
-    'jul': 7,
     'Jul': 7,
-    'aug': 8,
     'Aug': 8,
-    'sep': 9,
     'Sep': 9,
-    'oct': 10,
     'Oct': 10,
-    'nov': 11,
     'Nov': 11,
-    'dec': 12,
     'Dec': 12}
 network_options = ['jitter', 'rebuffers', 'rtt','retx','timeout','nack','segments']
 network = []
@@ -252,7 +243,7 @@ while (True):
         start_time = ''
         end_time = ''
         if result.p ==None:
-           print 'You can choose one of the network charaistics from jitter, rebuffers, rtt,retx,timeout,nack,segments'
+           print 'You can choose one of the network charaistics from jitter, rebuffers, rtt, retx, timeout, nack, segments'
            readline.set_completer(network_completer)
            type_plot = raw_input()
            from_argu = False
@@ -265,7 +256,8 @@ while (True):
             break;
         if len(start) != 0:
             start_time = start
-        else: start_time = start_times
+        else:
+             start_time = start_times
         print 'End date/time:'
         end = raw_input()
         end = case(end)
@@ -273,7 +265,8 @@ while (True):
             break;
         if len(end)!= 0:
             end_time = end
-        else : end_time = end_times
+        else:
+             end_time = end_times
         if from_argu:
            type_plot = d['p'][0]
         command = ''
