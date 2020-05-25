@@ -1,6 +1,6 @@
 #!/usr/bin/python
 #.....................................................................
-# Copyright (c) 2016-2019, Regents of the University of Arizona.
+# Copyright (c) 2016-2020, Regents of the University of Arizona.
 # Author:Wenkai Zheng<wenkaizheng@email.arizona.edu>
 #
 # You should have received a copy of the GNU General Public License along with
@@ -26,9 +26,14 @@ import argparse
 import datetime
 import readline
 
-
+'''
+  Name: trunc_datatime2
+  Parameter: line
+  Description: This function sort the auto_complete list for auto complete usage.
+               Each line will be sorted by it's date.
+               Each date includes year, month, day, hour,minute,second.
+'''
 def trunc_datetime2(line):
-     global auto_complection
      global Months
      year = line.split(' ')[0].split('/')[2]
      months_small = line.split(' ')[0].split('/')[0]
@@ -46,7 +51,15 @@ def trunc_datetime2(line):
         int(minute),
         int(second))
 
-    
+'''
+  Name: trunc_datatime
+  Parameter: line, save
+  Description: This function sort rc list for arranging data.
+               Each line will be sorted by it's date.
+               Each date includes year, month, day, hour,minute,second.
+               When save is True, we add it to auto_complete list.
+               This auto_complete list will be used for auto complete feature when prompt user's input. 
+'''  
 def trunc_datetime(line,save):
     global Months
     global auto_complete
@@ -57,7 +70,6 @@ def trunc_datetime(line,save):
     hour = data[3].split(':')[0]
     minute = data[3].split(':')[1]
     second = data[3].split(':')[2]
-    # Nov/4/2019 18:55:59
     if save:
         temp = ''
         for i in range (0,len(data[1])):
@@ -71,13 +83,33 @@ def trunc_datetime(line,save):
         int(hour),
         int(minute),
         int(second))
-
+'''
+  Name: sort_func
+  Parameter: line
+  Description: This function will call trunc_datetime to accomplish the sorting process.
+               The line is each individual element in list which needed to be sorted.
+               The second parameter will determine whether to save data for auto_complete list.
+'''
 def sort_func(line):
     return trunc_datetime(line, False)
-
+'''
+  Name: sort_func2
+  Parameter: arr
+  Description: This function will call trunc_datetime to accomplish the sorting process.
+               The arr is each individual element in list which needed to be sorted.
+               The second parameter will determine whether to save data for auto_complete list.
+'''
 def sort_func2(arr):
     return trunc_datetime(arr[0], True)
-
+'''
+  Name: process
+  Parameter: None
+  Description: This function will go through log file and split it according to session id.
+               Each line will be appended into same array if there have the same session id.
+               Sort lines in each different session id list by calling sort_func.
+               Append each sorted session id list into the rc list.
+               Sort rc list (use smallest element in each session list) by calling sort_func2. 
+'''
 def process():
     global id_map
     global content
@@ -97,7 +129,13 @@ def process():
         id_map[key] = sorted(id_map[key], key=sort_func)
         rc.append(id_map[key])
     rc = sorted(rc, key=sort_func2)
-    
+'''
+  Name: check_two_date
+  Parameter: date1, date2
+  Description: This function will check the valid data (<= data2 and >= date1).
+               Date1 and date2 are the date used for comparing.
+               Writer list will be used for collecting index for valid data list.
+'''  
 def check_two_date(date1, date2):
    global rc
    global writer
@@ -106,13 +144,18 @@ def check_two_date(date1, date2):
    for arr in rc:
        index += 1
        first = arr[0].strip()
-       #print first
        first_time = trunc_datetime(first,False)
        if date1 <= first_time and first_time <= date2:
             writer.append(index)
        if first_time > date2:
             break
-
+'''
+  Name: write_file
+  Parameter: None
+  Description: This function will open a file for writing.
+               The all valid data in writer list will be wrote into a file.
+               This file will be used for drawing the plot.
+'''  
 def write_file():
     global writer
     global rc
@@ -123,7 +166,12 @@ def write_file():
     for index in writer:
         for line in rc[index]:
             f.write(line + '\n')
-
+'''
+  Name: convert_date
+  Parameter: line
+  Description: This function will convert user's input(string) into date
+               The line is the user input.
+'''  
 def convert_date(line):
     global Months
     line = line.strip().split()
@@ -142,38 +190,68 @@ def convert_date(line):
         int(hour),
         int(minute),
         int(second))
+'''
+  Name: check_file
+  Parameter: name
+  Description: This function will check if the log file exist or not
+               The name is the name of file.
+               If the file is not exist, raise the error to remind user.
+               Otherwise we return the name.
+'''  
 def check_file(name):
     if not os.path.isfile(name):
           raise argparse.ArgumentTypeError("%s does not exist" % name)
     return name
-
+'''
+  Name: completer
+  Parameter: text,state
+  Description: This function will check the match options according to the user input text (auto_complete for date).
+               When the user presses the tab, this function will be called until there is no match option.
+               The state will be increased automatically
+               If any option is started with text, it will be retuned.
+'''  
 def completer(text,state):
     global auto_complete
     global options
-   # options = [cmd for cmd in auto_complete if cmd.startswith(text)]
     if state == 0:
        options = [cmd for cmd in auto_complete if cmd.startswith(text.lower())]
     if state < len(options):
         return options[state]
     else:
         return None
+'''
+  Name: network_completer
+  Parameter: text,state
+  Description: This function will check the match options according to the user input text (auto_complete for netwrok characteristic).
+               When the user presses the tab, this function will be called until there is no match option.
+               The state will be increased automatically
+               If any option is started with text, it will be retuned.
+'''  
 def network_completer(text,state):
     global network_options
     global network 
-   # options = [cmd for cmd in auto_complete if cmd.startswith(text)]
     if state == 0:
        network = [cmd for cmd in network_options if cmd.startswith(text.lower())]
     if state < len(network):
         return network[state]
     else:
         return None
-     
+'''
+  Name: find_first_match
+  Parameter: user_input
+  Description: This function will complete the user_input if user_input is not completed
+'''      
 def find_first_match(user_input):
       global auto_complete
       for date in auto_complete:
           if date.startswith(user_input):
              return date
       return None
+'''
+  Name: find_first_match
+  Parameter: date
+  Description: This function will stop the program if date equal to 'exit' 
+'''    
 def case(date):
      if len(date) == 4:
           if date.lower() == 'exit':
@@ -181,7 +259,16 @@ def case(date):
           return date.lower()
      else:
           return date.lower()
-
+'''
+   Name: Main
+   Parameter: None
+   Description: This function will have collect and arrange datas from log file,
+                and save those datas into different structures such as list and map.
+                It also reads input from user and provides auto-complete feature.
+                It provies help or -h option for user usage.
+                It get all valid data from specific date and specific netwrok_options.
+                Eventually it will call other process to complete the plot.
+'''
 writer = []
 rc = []
 content = []
@@ -243,7 +330,8 @@ while (True):
         start_time = ''
         end_time = ''
         if result.p ==None:
-           print 'You can choose one of the network charaistics from jitter, rebuffers, rtt, retx, timeout, nack, segments'
+           network = ','.join(network_options)
+           print 'You can choose one of the network charaistics from ' + network
            readline.set_completer(network_completer)
            type_plot = raw_input()
            from_argu = False
@@ -275,29 +363,23 @@ while (True):
         else:
             command = 'python session-' + type_plot + '.py'
         judge = False
-        #judge format in here
-        if start_time.count('/')!=2 or start_time.count(':')!=2:
-             rv = find_first_match(start_time)
-             if rv == None:
-                print "Warning there is no matching options"
-                continue
-             start_time = rv
-        
-        if end_time.count('/')!=2 or end_time.count(':')!=2:
-              rv = find_first_match(end_time)
-              if rv == None:
-                print "Warning there is no matching options"
-                continue;
-              end_time = rv
+        rv = find_first_match(start_time)
+        if rv == None:
+            print "Warning there is no matching option."
+            continue
+        start_time = rv
+        rv = find_first_match(end_time)
+        if rv == None:
+            print "Warning there is no matching option."
+            continue;
+        end_time = rv
         print 'Start time is '+start_time + ' End time is '+ end_time
         if len(start) == 0 and len(end) == 0:
             print 'print all plot'
             judge = True
             command = command + ' ' + file_name
-        # we need to have 2 situtation which means either start or and end is blank
         elif len(start) == 0 or len(end) == 0:
             print 'one date specific'
-            #check_one_date(convert_date(date_range))
             check_two_date(convert_date(start_time),
                        convert_date(end_time))
             write_file()
@@ -314,13 +396,13 @@ while (True):
         if judge == False:
             os.remove('qualified_data.txt')
     except ValueError:
-         print 'Your input date is invalid; hour should between 0-23, minute and '+\
-        'second should between 0-59, day should be 1-30 or 31 '
+         print 'Your input format is invalid; hour should between 0-23, minute and '+\
+        'second should between 0-59, and day should between 1-31.'
          continue
     except IndexError:
-        print 'Your input is missing some part and correct date should' + \
-       'be month/day/year hour:minute:second'
+        print 'Your input format is not correct and correct format should' + \
+       'be month/day/year hour:minute:second.'
         continue
     except KeyError:
-        print 'Use valid months please such as Nov,Dec'
+        print 'Your input format of month is not correct and correct format should be Nov, Dec....'
         continue
