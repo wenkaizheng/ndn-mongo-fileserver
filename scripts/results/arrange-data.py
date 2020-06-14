@@ -8,15 +8,13 @@
 #
 # DESCRIPTION:
 # ------------
-# This script accepts a log file including stats Interest from ivisa service and
+# This script accepts a log file including stats Interests from ivisa service and
 # prints a statistical plot within a given time range.
 #
 # Interactive mode:
-#   - Two inputs: The start time and end time, and any session's start time is
-#     between these two inputs should be displayed as plot.
-#   - One input: The start time, and any session's start time after this input
-#     should be displayed as plot.
-#   - No input: All session should be displayed as plot.
+#   - Two inputs: Include the any session whose start time falls between the input dates and times.
+#   - One input: Include all sessions whose start time is greater than the input date and time.
+#   - No input: Include all sessions.
 #.....................................................................
 import os
 import sys
@@ -26,257 +24,27 @@ import argparse
 import datetime
 import readline
 
-'''
-  Name: trunc_datatime2
-  Parameter: line
-  Description: This function sort the auto_complete list for auto complete usage.
-               Each line will be sorted by it's date.
-               Each date includes year, month, day, hour,minute,second.
-'''
-def trunc_datetime2(line):
-     global Months
-     year = line.split(' ')[0].split('/')[2]
-     months_small = line.split(' ')[0].split('/')[0]
-     months_index = months_small[0].upper()+months_small[1]+months_small[2]
-     month = Months[months_index]
-     day = line.split(' ')[0].split('/')[1]
-     hour = line.split(' ')[1].split(':')[0]
-     minute = line.split(' ')[1].split(':')[1]
-     second = line.split(' ')[1].split(':')[2]
-     return datetime.datetime(
-        int(year),
-        int(month),
-        int(day),
-        int(hour),
-        int(minute),
-        int(second))
+class bcolors:
+  OKBLUE = '\033[94m'
+  OKGREEN = '\033[92m'
+  WARNING = '\033[93m'
+  FAIL = '\033[91m'
+  ENDC = '\033[0m'
+  BOLD = '\033[1m'
+  UNDERLINE = '\033[4m'
 
-'''
-  Name: trunc_datatime
-  Parameter: line, save
-  Description: This function sort rc list for arranging data.
-               Each line will be sorted by it's date.
-               Each date includes year, month, day, hour,minute,second.
-               When save is True, we add it to auto_complete list.
-               This auto_complete list will be used for auto complete feature when prompt user's input. 
-'''  
-def trunc_datetime(line,save):
-    global Months
-    global auto_complete
-    data = line.split()
-    year = data[4]
-    month = Months[data[1]]
-    day = data[2]
-    hour = data[3].split(':')[0]
-    minute = data[3].split(':')[1]
-    second = data[3].split(':')[2]
-    if save:
-        temp = ''
-        for i in range (0,len(data[1])):
-            temp = temp + data[1][i].lower() if i == 0 else temp + data[1][i]
-        date = temp + '/' + day + '/' + year + ' ' + hour + ':' + minute + ':' +second
-        auto_complete.append(date)
-    return datetime.datetime(
-        int(year),
-        int(month),
-        int(day),
-        int(hour),
-        int(minute),
-        int(second))
-'''
-  Name: sort_func
-  Parameter: line
-  Description: This function will call trunc_datetime to accomplish the sorting process.
-               The line is each individual element in list which needed to be sorted.
-               The second parameter will determine whether to save data for auto_complete list.
-'''
-def sort_func(line):
-    return trunc_datetime(line, False)
-'''
-  Name: sort_func2
-  Parameter: arr
-  Description: This function will call trunc_datetime to accomplish the sorting process.
-               The arr is each individual element in list which needed to be sorted.
-               The second parameter will determine whether to save data for auto_complete list.
-'''
-def sort_func2(arr):
-    return trunc_datetime(arr[0], True)
-'''
-  Name: process
-  Parameter: None
-  Description: This function will go through log file and split it according to session id.
-               Each line will be appended into same array if there have the same session id.
-               Sort lines in each different session id list by calling sort_func.
-               Append each sorted session id list into the rc list.
-               Sort rc list (use smallest element in each session list) by calling sort_func2. 
-'''
-def process():
-    global id_map
-    global content
-    global session_num
-    global rc
-    for line in content:
-        lines = line.split('session%3D')[1]
-        session_id = lines.split('/')[0]
-        if session_id not in id_map:
-            id_map[session_id] = []
-            id_map[session_id].append(line)
-        else:
-            id_map[session_id].append(line)
-            
-    session_num = len(id_map)
-    for key in id_map:
-        id_map[key] = sorted(id_map[key], key=sort_func)
-        rc.append(id_map[key])
-    rc = sorted(rc, key=sort_func2)
-'''
-  Name: check_two_date
-  Parameter: date1, date2
-  Description: This function will check the valid data (<= data2 and >= date1).
-               Date1 and date2 are the date used for comparing.
-               Writer list will be used for collecting index for valid data list.
-'''  
-def check_two_date(date1, date2):
-   global rc
-   global writer
-   result = []
-   index = -1
-   for arr in rc:
-       index += 1
-       first = arr[0].strip()
-       first_time = trunc_datetime(first,False)
-       if date1 <= first_time and first_time <= date2:
-            writer.append(index)
-       if first_time > date2:
-            break
-'''
-  Name: write_file
-  Parameter: None
-  Description: This function will open a file for writing.
-               The all valid data in writer list will be wrote into a file.
-               This file will be used for drawing the plot.
-'''  
-def write_file():
-    global writer
-    global rc
-    if len(writer) == 0:
-        print("no such a session exist")
-        exit(1)
-    f = open('qualified_data.txt', 'w+')
-    for index in writer:
-        for line in rc[index]:
-            f.write(line + '\n')
-'''
-  Name: convert_date
-  Parameter: line
-  Description: This function will convert user's input(string) into date
-               The line is the user input.
-'''  
-def convert_date(line):
-    global Months
-    line = line.strip().split()
-    year = line[0].split('/')[2]
-    months_small = line[0].split('/')[0]
-    months_index = months_small[0].upper()+ months_small[1] + months_small[2]
-    month = Months[months_index]
-    day = line[0].split('/')[1]
-    hour = line[1].split(':')[0]
-    minute = line[1].split(':')[1]
-    second = line[1].split(':')[2]
-    return datetime.datetime(
-        int(year),
-        int(month),
-        int(day),
-        int(hour),
-        int(minute),
-        int(second))
-'''
-  Name: check_file
-  Parameter: name
-  Description: This function will check if the log file exist or not
-               The name is the name of file.
-               If the file is not exist, raise the error to remind user.
-               Otherwise we return the name.
-'''  
-def check_file(name):
-    if not os.path.isfile(name):
-          raise argparse.ArgumentTypeError("%s does not exist" % name)
-    return name
-'''
-  Name: completer
-  Parameter: text,state
-  Description: This function will check the match options according to the user input text (auto_complete for date).
-               When the user presses the tab, this function will be called until there is no match option.
-               The state will be increased automatically
-               If any option is started with text, it will be retuned.
-'''  
-def completer(text,state):
-    global auto_complete
-    global options
-    if state == 0:
-       options = [cmd for cmd in auto_complete if cmd.startswith(text.lower())]
-    if state < len(options):
-        return options[state]
-    else:
-        return None
-'''
-  Name: network_completer
-  Parameter: text,state
-  Description: This function will check the match options according to the user input text (auto_complete for netwrok characteristic).
-               When the user presses the tab, this function will be called until there is no match option.
-               The state will be increased automatically
-               If any option is started with text, it will be retuned.
-'''  
-def network_completer(text,state):
-    global network_options
-    global network 
-    if state == 0:
-       network = [cmd for cmd in network_options if cmd.startswith(text.lower())]
-    if state < len(network):
-        return network[state]
-    else:
-        return None
-'''
-  Name: find_first_match
-  Parameter: user_input
-  Description: This function will complete the user_input if user_input is not completed
-'''      
-def find_first_match(user_input):
-      global auto_complete
-      for date in auto_complete:
-          if date.startswith(user_input):
-             return date
-      return None
-'''
-  Name: find_first_match
-  Parameter: date
-  Description: This function will stop the program if date equal to 'exit' 
-'''    
-def case(date):
-     if len(date) == 4:
-          if date.lower() == 'exit':
-               return 'exit'
-          return date.lower()
-     else:
-          return date.lower()
-'''
-   Name: Main
-   Parameter: None
-   Description: This function will have collect and arrange datas from log file,
-                and save those datas into different structures such as list and map.
-                It also reads input from user and provides auto-complete feature.
-                It provies help or -h option for user usage.
-                It get all valid data from specific date and specific netwrok_options.
-                Eventually it will call other process to complete the plot.
-'''
-writer = []
-rc = []
-content = []
-id_map = {}
+content = []       # array lines of the log file
+session_map = {}   # group each session's lines in an array ([session_id][lines])
+rc = []            # sort out the lines according to session id and time ([x][session's sorted lines])
+session_count = 0
 auto_complete = []
-session_num = 0
 options = []
-Months = {
+network = []
+
+# CONSTANTS
+DATA_FILE = 'qualified_data.txt'
+NET_OPT = ['jitter', 'rebuffers', 'rtt','retx','timeout','nack','segments']
+MONTHS = {
     'Jan': 1,
     'Feb': 2,
     'Mar': 3,
@@ -289,35 +57,194 @@ Months = {
     'Oct': 10,
     'Nov': 11,
     'Dec': 12}
-network_options = ['jitter', 'rebuffers', 'rtt','retx','timeout','nack','segments']
-network = []
+
+
+def trunc_datetime2(line):
+     global MONTHS
+     year = line.split(' ')[0].split('/')[2]
+     months_small = line.split(' ')[0].split('/')[0]
+     months_index = months_small[0].upper()+months_small[1]+months_small[2]
+     month = MONTHS[months_index]
+     day = line.split(' ')[0].split('/')[1]
+     hour = line.split(' ')[1].split(':')[0]
+     minute = line.split(' ')[1].split(':')[1]
+     second = line.split(' ')[1].split(':')[2]
+     return datetime.datetime(
+        int(year),
+        int(month),
+        int(day),
+        int(hour),
+        int(minute),
+        int(second))
+
+def trunc_datetime(line,save):
+    global MONTHS
+    global auto_complete
+    data = line.split()
+    year = data[4]
+    month = MONTHS[data[1]]
+    day = data[2]
+    hour = data[3].split(':')[0]
+    minute = data[3].split(':')[1]
+    second = data[3].split(':')[2]
+    if save:
+        temp = ''
+        for i in range (0, len(data[1])):
+            temp = temp + data[1][i].lower() if i == 0 else temp + data[1][i]
+        date = temp + '/' + day + '/' + year + ' ' + hour + ':' + minute + ':' +second
+        auto_complete.append(date)
+    return datetime.datetime(
+        int(year),
+        int(month),
+        int(day),
+        int(hour),
+        int(minute),
+        int(second))
+
+def sort_func(line):
+    return trunc_datetime(line, False)
+
+def sort_func2(arr):
+    return trunc_datetime(arr[0], True)
+
+'''
+  Group the lines belonging to each video session in separate arrays in $session_map.
+  Next, sort each array timewise, and put them in $rc. Then sort $rc based on the
+  starting time of each session.
+'''
+def process():
+    global rc
+    global content
+    global session_map
+    global session_count
+    for line in content:
+        sid = line.split('session%3D')[1].split('/')[0]
+        if sid not in session_map:
+            session_map[sid] = []
+            session_map[sid].append(line)
+        else:
+            session_map[sid].append(line)
+    session_count = len(session_map)
+    for sid in session_map:
+        session_map[sid] = sorted(session_map[sid], key=sort_func)
+        rc.append(session_map[sid])
+    rc = sorted(rc, key=sort_func2)
+
+'''
+  Find video sessions falling between the solicited start and end
+  dates/times by user. Then populate $DATA_FILE by each session's lines
+  for plotting.
+'''
+def select_sessions(date1, date2):
+   global rc
+   index = -1
+   counter = 0
+   f = open(DATA_FILE, 'w+')
+   for session in rc:
+       index += 1
+       session_start_time = trunc_datetime(session[0].strip(), False)
+       if session_start_time > date2:
+           break
+       if session_start_time >= date1:
+           counter += 1
+           for line in session:
+               f.write(line + '\n')
+   if counter == 0:
+       print (bcolors.WARNING + 'No video session is found...' + bcolors.ENDC)
+       return 1
+   print ('Number of selected video sessions: ' + bcolors.OKGREEN + str(counter) + bcolors.ENDC)
+   return 0
+
+'''
+  Convert user's string input to date.
+'''
+def convert_date(uin):
+    global MONTHS
+    uin = uin.strip().split()
+    year = uin[0].split('/')[2]
+    months_small = uin[0].split('/')[0]
+    months_index = months_small[0].upper()+ months_small[1] + months_small[2]
+    month = MONTHS[months_index]
+    day = uin[0].split('/')[1]
+    hour = uin[1].split(':')[0]
+    minute = uin[1].split(':')[1]
+    second = uin[1].split(':')[2]
+    return datetime.datetime(
+        int(year),
+        int(month),
+        int(day),
+        int(hour),
+        int(minute),
+        int(second))
+
+'''
+  Check if the log file exist.
+'''
+def check_file(filename):
+    if not os.path.isfile(filename):
+          raise argparse.ArgumentTypeError("%s does not exist" % filename)
+    return filename
+
+def completer(text,state):
+    global auto_complete
+    global options
+    if state == 0:
+       options = [cmd for cmd in auto_complete if cmd.startswith(text.lower())]
+    if state < len(options):
+        return options[state]
+    else:
+        return None
+
+def network_completer(text,state):
+    global NET_OPT
+    global network
+    if state == 0:
+       network = [cmd for cmd in NET_OPT if cmd.startswith(text.lower())]
+    if state < len(network):
+        return network[state]
+    else:
+        return None
+
+def find_first_match(user_input):
+      global auto_complete
+      for date in auto_complete:
+          if date.startswith(user_input):
+             return date
+      return None
+
+def trimmer(uin):
+    return uin.lower().strip()
+
+def print_error_message():
+    print (bcolors.WARNING + 'Invalid input. The correct format of the input is: ' + \
+           'Month(Jan, Feb, ..)/Day(1-31)/Year Hour(1-24):Minute(0-59):Second(0-59).' + bcolors.ENDC)
+
+
 
 parser = argparse.ArgumentParser(prog='arrange-data.py')
-parser.add_argument('-p', choices=['jitter', 'rebuffers', 'rtt','retx','timeout','nack','segments'], metavar='Valid Options',
-                        nargs=1,help='Your choice of options is jitter, rebuffers, or rtt',required =False)
-parser.add_argument('i', metavar='Input File', nargs=1, type = check_file,
-                        help='You need to have a input file for drawing plots')
+parser.add_argument('-p', choices=NET_OPT, metavar='plot options', nargs=1,
+       help=', '.join(NET_OPT), required =False)
+parser.add_argument('i', metavar='Log File', nargs=1, type = check_file,
+       help='The input log file containing stats')
 result = parser.parse_args(sys.argv[1:])
-   
+
 d = vars(result)
-file_name = d['i'][0]
-with open(file_name) as f:
+logfile_name = d['i'][0]
+_p = '' if result.p == None else d['p'][0]
+with open(logfile_name) as f:
     content = f.readlines()
     content = [x.strip() for x in content]
     process()
-    print 'Number of video sessions: ' + str(session_num)
-    start_times = rc[0][0].split()[1] + '/' \
+    print ('Total number of video sessions in the log file: ' +
+            bcolors.BOLD + str(session_count) + bcolors.ENDC)
+    earliest_time = rc[0][0].split()[1] + '/' \
         + rc[0][0].split()[2] + '/' + rc[0][0].split()[4] + ' ' \
         + rc[0][0].split()[3]
-    print 'Earliest time is ' + rc[0][0].split()[1] + '/' \
-        + rc[0][0].split()[2] + '/' + rc[0][0].split()[4] + ' ' \
-        + rc[0][0].split()[3]
-    end_times = rc[-1][0].split()[1] + '/' \
+    print ('Earliest date and time: ' + bcolors.BOLD + str(earliest_time) + bcolors.ENDC)
+    latest_time = rc[-1][0].split()[1] + '/' \
         + rc[-1][0].split()[2] + '/' + rc[-1][0].split()[4] + ' ' \
         + rc[-1][0].split()[3]
-    print 'Lastest time is ' + rc[-1][0].split()[1] + '/' \
-        + rc[-1][0].split()[2] + '/' + rc[-1][0].split()[4] + ' ' \
-        + rc[-1][0].split()[3]
+    print ('Latest date and time:   ' + bcolors.BOLD + str(latest_time) + bcolors.ENDC)
     readline.set_completer_delims('\t\n')
     readline.parse_and_bind("set show-all-if-unmodified on")
     readline.parse_and_bind("set completion-query-items 10000")
@@ -329,80 +256,63 @@ while (True):
     try:
         start_time = ''
         end_time = ''
-        if result.p ==None:
-           network = ','.join(network_options)
-           print 'You can choose one of the network charaistics from ' + network
+        if _p == '':
+           print 'You can choose a network charaistic for plotting: ' +\
+           ', '.join(NET_OPT)
            readline.set_completer(network_completer)
-           type_plot = raw_input()
-           from_argu = False
+           uin = trimmer(raw_input())
+           if uin in NET_OPT:
+               _p = uin
+           else:
+               print (bcolors.WARNING + 'Invalid network charactristic...' + bcolors.ENDC)
+               continue
         readline.set_completer(completer)
-        print 'Please type a date range'
-        print 'Start date/time:'
-        start = raw_input()
-        start = case(start)
-        if start == 'exit':
-            break;
-        if len(start) != 0:
-            start_time = start
-        else:
-             start_time = start_times
-        print 'End date/time:'
-        end = raw_input()
-        end = case(end)
-        if end == 'exit':
-            break;
-        if len(end)!= 0:
-            end_time = end
-        else:
-             end_time = end_times
-        if from_argu:
-           type_plot = d['p'][0]
-        command = ''
-        if type_plot == 'jitter' or type_plot == 'rtt':
-            command = 'python session-avg-' + type_plot + '.py'
-        else:
-            command = 'python session-' + type_plot + '.py'
-        judge = False
-        rv = find_first_match(start_time)
-        if rv == None:
-            print "Warning there is no matching option."
+
+        print 'Enter start date and time:'
+        start = trimmer(raw_input())
+        start_time = start if len(start) != 0 else trimmer(str(earliest_time))
+        if find_first_match(start_time) == None:
+            print (bcolors.WARNING + 'Warning there is no matching date/time.' + bcolors.ENDC)
             continue
-        start_time = rv
-        rv = find_first_match(end_time)
-        if rv == None:
-            print "Warning there is no matching option."
+        print 'Enter end date and time:'
+        end = trimmer(raw_input())
+        end_time = end if len(end) != 0 else trimmer(str(latest_time))
+        if find_first_match(end_time) == None:
+            print (bcolors.WARNING + 'Warning there is no matching date/time.' + bcolors.ENDC)
+            continue
+        print ('Start data and time: ' + bcolors.OKGREEN + start_time.upper() + bcolors.ENDC +
+               '\nEnd data and time:   ' + bcolors.OKGREEN + end_time.upper() + bcolors.ENDC)
+
+        if select_sessions(convert_date(start_time), convert_date(end_time)) == 1:
             continue;
-        end_time = rv
-        print 'Start time is '+start_time + ' End time is '+ end_time
-        if len(start) == 0 and len(end) == 0:
-            print 'print all plot'
-            judge = True
-            command = command + ' ' + file_name
-        elif len(start) == 0 or len(end) == 0:
-            print 'one date specific'
-            check_two_date(convert_date(start_time),
-                       convert_date(end_time))
-            write_file()
-            command = command + ' qualified_data.txt'
-        else:
-            print 'two date specific'
-            check_two_date(convert_date(start_time),
-                       convert_date(end_time))
-            write_file()
-            command = command + ' qualified_data.txt'
+        command = 'python session-' + ('avg-' if _p == 'jitter' or _p == 'rtt' else '') + _p + '.py'
+        command += ' ' + DATA_FILE
         process = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE)
         output, err = process.communicate()
         print output
-        if judge == False:
-            os.remove('qualified_data.txt')
+        os.remove(DATA_FILE)
+
+        print ('SELECT AN OPTION:')
+        print ('  '+ bcolors.UNDERLINE + '1.' + bcolors.ENDC + ' Choose another date/time ' +\
+               bcolors.BOLD + '(default)' + bcolors.ENDC)
+        print ('  2. Choose another plot')
+        print ('  3. Quit')
+        uin = trimmer(raw_input())
+        if uin == '2' or uin == '2.':
+            _p = ''
+        elif uin == '3' or uin == '3.':
+            exit(0)
+
     except ValueError:
-         print 'Your input format is invalid; hour should between 0-23, minute and '+\
-        'second should between 0-59, and day should between 1-31.'
-         continue
+        print_error_message()
+        continue
     except IndexError:
-        print 'Your input format is not correct and correct format should' + \
-       'be month/day/year hour:minute:second.'
+        print_error_message()
         continue
     except KeyError:
-        print 'Your input format of month is not correct and correct format should be Nov, Dec....'
+        print_error_message()
         continue
+    except KeyError:
+        print_error_message()
+        continue
+
