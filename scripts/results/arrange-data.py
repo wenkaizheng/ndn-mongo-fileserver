@@ -1,6 +1,6 @@
 #!/usr/bin/python
 #.....................................................................
-# Copyright (c) 2016-2020, Regents of the University of Arizona.
+# Copyright (c) 2019-2020, Regents of the University of Arizona.
 # Author:Wenkai Zheng<wenkaizheng@email.arizona.edu>
 #
 # You should have received a copy of the GNU General Public License along with
@@ -271,13 +271,15 @@ while (True):
         print 'Enter start date and time:'
         start = trimmer(raw_input())
         start_time = start if len(start) != 0 else trimmer(str(earliest_time))
-        if find_first_match(start_time) == None:
+        start_time = find_first_match(start_time)
+        if start_time == None:
             print (bcolors.WARNING + 'Warning there is no matching date/time.' + bcolors.ENDC)
             continue
         print 'Enter end date and time:'
         end = trimmer(raw_input())
         end_time = end if len(end) != 0 else trimmer(str(latest_time))
-        if find_first_match(end_time) == None:
+        end_time = find_first_match(end_time)
+        if end_time == None:
             print (bcolors.WARNING + 'Warning there is no matching date/time.' + bcolors.ENDC)
             continue
         print ('Start data and time: ' + bcolors.OKGREEN + start_time.upper() + bcolors.ENDC +
@@ -300,7 +302,7 @@ while (True):
         uin = trimmer(raw_input())
         if uin == '2' or uin == '2.':
             _p = ''
-        elif uin == '3' or uin == '3.':
+        elif uin == '3' or uin == '3.' or trimmer(uin) == 'q':
             exit(0)
 
     except ValueError:
