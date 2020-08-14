@@ -384,6 +384,21 @@ def search_items(id, items):
         name = item[1][item[1].find(':')+2:]
         if id == file_id:
             return name
+    return None
+
+'''
+After a file is insert we dump the data-s and save status in the log file.
+Start download it, encode, package, chunk, and generate html file.
+'''
+def new_file(file_coll,file_instance,file_id,creds,name):
+    dump_data(file_coll)
+    write_record(file_instance)
+    rv = download(file_id, creds)
+    if rv == 0:
+       file_instance.set_status("download")
+       dump_data(file_coll)
+       write_record(file_instance)
+       driver_script(name, file_instance, file_coll)
 
 '''
 Using the gdrive command to list all file info
@@ -439,11 +454,13 @@ def process(creds):
             mime_type = item[3][item[3].find(':')+2:]
            # print(name,time,parent,file_id,mime_type,file_id)
             if mime_type == 'application/vnd.google-apps.folder':
-                if file_id not in file_coll:
+               if folder_name != name:
+                   continue
+               if file_id not in file_coll:
                     file_coll[file_id] = []
                     if not os.path.exists(name):
                         os.mkdir(name)
-                continue
+               continue
             if mime_type.find('video') == -1:
                 continue
             time = item[6][item[6].find(':')+2:]
@@ -478,34 +495,20 @@ def process(creds):
                     owner = search_items(parent, items)
                     directory = 'cd '+owner+' && '
                     file_coll[parent].append(file_instance)
-                    dump_data(file_coll)
-                    write_record(file_instance)
-                    print("101th")
-                    rv = download(file_id, creds)
-                    if rv == 0:
-                        file_instance.set_status("download")
-                        dump_data(file_coll)
-                        write_record(file_instance)
-                        driver_script(name, file_instance, file_coll)
+                    print("495th")
+                    new_file(file_coll,file_instance,file_id,creds,name)
             # create the new folder and insert the file into it
             else:
+                parent_name = search_items(parent,items)
+                if parent_name != folder_name:
+                    continue
                 file_coll[parent] = []
                 file_coll[parent].append(file_instance)
-                owner = search_items(parent, items)
+                owner = parent_name
                 if not os.path.exists(owner):
                     os.mkdir(owner)
                 directory = 'cd '+owner+' && '
-                # when it is initial
-                dump_data(file_coll)
-                write_record(file_instance)
-                print("106th")
-                print(directory)
-                rv = download(file_id, creds)
-                if rv == 0:
-                    file_instance.set_status("download")
-                    dump_data(file_coll)
-                    write_record(file_instance)
-                    driver_script(name, file_instance, file_coll)
+                new_file(file_coll,file_instance,file_id,creds,name)
 
     for key in file_coll:
         for fi in file_coll[key][:]:
@@ -567,12 +570,15 @@ if env == 'test':
 parser = argparse.ArgumentParser(prog='ndn_script.py')
 parser.add_argument('-v', choices=['info', 'debug'], metavar='version',
                     nargs=1, help='valid version should be info or debug')
+parser.add_argument('-n', metavar='name of folder', nargs=1,
+                        help='please give a name of folder')
 result = parser.parse_args(sys.argv[1:])
 if result.v == None:
     parser.print_help(sys.stderr)
     sys.exit(1)
-version = result.v
-
+version = result.v[0]
+folder_name = result.n[0]
+print(version,folder_name)
 owner = ''
 directory = ''
 start()
