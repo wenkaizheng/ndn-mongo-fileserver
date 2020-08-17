@@ -18,7 +18,7 @@ from google.auth.transport.requests import Request
 from MY_FILE import myFile
 # If modifying these scopes, delete the file token.pickle.
 SCOPES = ['https://www.googleapis.com/auth/drive']
-
+#SCOPES = ['https://www.googleapis.com/auth/drive.file']
 '''
 Using the file id to run the download command from gdrive
 everytime before run the gdrive command, we need to check the 
@@ -82,7 +82,7 @@ def driver_script(file_name, file_instance, file_coll):
 
     #pwd = os.path.abspath(env_path + "../video/driver.sh")
     #pwd1 = os.path.dirname(os.path.realpath("packager.sh")) +'/packager.sh'
-    #file_name_prefix = file_name[:file_name.find('.')]
+    #file_name_prefix = file_name[:file_name.rfind('.')]
     base = '/ndn/web/video'
     encode(file_name, file_instance, file_coll)
     packaged(file_name, file_instance, file_coll)
@@ -95,8 +95,8 @@ chunk the video file to MongoDB
 change the status to chunked if success.
 '''
 def chunker(file_name, file_instance, file_coll):
-    pwd = os.path.abspath(env_path + owner)
-    file_name_prefix = file_name[:file_name.find('.')]
+    pwd = os.path.abspath(env_path + folder_name)
+    file_name_prefix = file_name[:file_name.rfind('.')]
     base = '/ndn/web/video'
     version = '1'
     segmentSize = '8000'
@@ -116,6 +116,7 @@ change the status to encoded if success.
 '''
 def encode(file_name, file_instance, file_coll):
     encode = directory + env_path + '../../video/transcoder.sh ' + file_name + ' && wait'
+    print(encode)
     if driver_script_helper(encode) == 0:
         file_instance.set_status('encoded')
         dump_data(file_coll)
@@ -129,7 +130,7 @@ change the status to packaged if success.
 def packaged(file_name, file_instance, file_coll):
     pwd = './'
     pwd1 = directory + env_path + "../../video/packager.sh"
-    file_name_prefix = file_name[:file_name.find('.')]
+    file_name_prefix = file_name[:file_name.rfind('.')]
     protocol = 'hls'
     playlist = 'playlist.m3u8'
     package = (pwd1+' ' + '.'+' ' + file_name_prefix + ' '
@@ -147,7 +148,7 @@ each step holds different status
 change the status to html and js first, html and js second if success.
 '''
 def html(file_name, file_instance, file_coll, judge):
-    file_name_prefix = file_name[:file_name.find('.')]
+    file_name_prefix = file_name[:file_name.rfind('.')]
     base = '/ndn/web/video'
     protocol = 'hls'
     playlist = 'playlist.m3u8'
@@ -209,8 +210,8 @@ def check_all_encode(prefix):
 Return the number of encoded file.
 '''
 def check_encoded_number(prefix):
-    encoded_arr = [owner + '/' + prefix+'_h264_1080p.mp4', owner + '/' + prefix+'_h264_240p.mp4', owner +
-                   '/'+prefix+'_h264_360p.mp4', owner + '/' + prefix+'_h264_480p.mp4', owner + '/' + prefix+'_h264_720p.mp4']
+    encoded_arr = [folder_name + '/' + prefix+'_h264_1080p.mp4', folder_name + '/' + prefix+'_h264_240p.mp4', folder_name +
+                   '/'+prefix+'_h264_360p.mp4', folder_name + '/' + prefix+'_h264_480p.mp4', folder_name + '/' + prefix+'_h264_720p.mp4']
     num = 0
     for i in encoded_arr:
         if os.path.exists(i):
@@ -240,31 +241,36 @@ second which means all process is done.
 '''
 def check_status(file_coll, creds, items):
     global directory
-    global owner
+    global folder_name
     for key in file_coll:
         for file_instance in file_coll[key]:
-            owner = search_items(file_instance.get_parent(), items)
-            directory = 'cd '+owner+' && '
+            rc = search_items(file_instance.get_parent(), items)
+            if rc != folder_name:
+                continue
+            directory = 'cd '+folder_name+' && '
             status = file_instance.get_status()
             name = file_instance.get_name()
             file_id = file_instance.get_id()
-            web = name[:name.find('.')]+'.html'
-            prefix = name[:name.find('.')]
+            web = name[:name.rfind('.')]+'.html'
+            prefix = name[:name.rfind('.')]
             if status == 'initial':
-                download(file_id, creds)
-                file_instance.set_status("download")
-                dump_data(file_coll)
-                driver_script(name, file_instance, file_coll)
+                rv = download(file_id, creds)
+                if rv == 0:
+                   file_instance.set_status("download")
+                   dump_data(file_coll)
+                   driver_script(name, file_instance, file_coll)
 
             elif status == 'download':
                 # todo check if the file exist and process
-                if os.path.exists(owner+'/'+name):
+                rv = 0
+                if os.path.exists(folder_name+'/'+name):
                     pass
                 else:
-                    download(file_id, creds)
+                    rv = download(file_id, creds)
                 if check_encoded_number(prefix) > 0:
                     delete_encoder(name)
-                driver_script(name, file_instance, file_coll)
+                if rv == 0:
+                    driver_script(name, file_instance, file_coll)
             elif status == 'encoded':
                 if check_all_encode(prefix):
                     pass
@@ -273,14 +279,14 @@ def check_status(file_coll, creds, items):
                     driver_script(name, file_instance, file_coll)
                     continue
                 # in the middle of package
-                if os.path.exists(owner + '/' + prefix):
+                if os.path.exists(folder_name + '/' + prefix):
                     delete_packager(name)
                 packaged(name, file_instance, file_coll)
                 chunker(name, file_instance, file_coll)
                 html(name, file_instance, file_coll,True)
 
             elif status == 'packaged':
-                if os.path.exists(owner + '/' + prefix):
+                if os.path.exists(folder_name + '/' + prefix):
                     pass
                 else:
                     packaged(name, file_instance, file_coll)
@@ -292,12 +298,12 @@ def check_status(file_coll, creds, items):
             elif status == 'chunked':
                 # todo we need to check MongoDB before generate html
                 # in the middle of html
-                if os.path.exists(owner + '/' + web):
+                if os.path.exists(folder_name + '/' + web):
                     delete_html(name)
                 html(name, file_instance, file_coll, True)
             # only one left is html but we need to have two
             else:
-                if not os.path.exists(owner + '/' + web):
+                if not os.path.exists(folder_name + '/' + web):
                     html(name, file_instance, file_coll, True)
                 else:
                     if file_instance.get_status() == 'html and js first':
@@ -309,7 +315,7 @@ Delete the video file
 '''
 def delete(file_name):
     # delete it self
-    file_name = owner + '/' + file_name
+    file_name = folder_name + '/' + file_name
     print(file_name)
     if os.path.exists(file_name):
         os.remove(file_name)
@@ -318,8 +324,8 @@ def delete(file_name):
 Delete the packager folder
 '''
 def delete_packager(file_name):
-    prefix = file_name[:file_name.find('.')]
-    prefix = owner + '/' + prefix
+    prefix = file_name[:file_name.rfind('.')]
+    prefix = folder_name + '/' + prefix
     print(prefix)
     if os.path.exists(prefix):
         shutil.rmtree(prefix)
@@ -329,9 +335,9 @@ Delete the encoded mp4 files
 '''
 def delete_encoder(file_name):
     # delete the encoder
-    prefix = file_name[:file_name.find('.')]
-    encoded_arr = encoded_arr = [owner + '/' + prefix+'_h264_1080p.mp4', owner + '/' + prefix+'_h264_240p.mp4',
-                                 owner + '/'+prefix+'_h264_360p.mp4', owner + '/' + prefix+'_h264_480p.mp4', owner + '/' + prefix+'_h264_720p.mp4']
+    prefix = file_name[:file_name.rfind('.')]
+    encoded_arr = encoded_arr = [folder_name + '/' + prefix+'_h264_1080p.mp4', folder_name + '/' + prefix+'_h264_240p.mp4',
+                                 folder_name + '/'+prefix+'_h264_360p.mp4', folder_name + '/' + prefix+'_h264_480p.mp4', folder_name + '/' + prefix+'_h264_720p.mp4']
     count = 5
     for i in range(0, count):
         print(encoded_arr[i])
@@ -342,8 +348,8 @@ def delete_encoder(file_name):
 Delete the ndn-webpage file
 '''
 def delete_html(file_name):
-    prefix = file_name[:file_name.find('.')]
-    prefix = owner + '/' + prefix
+    prefix = file_name[:file_name.rfind('.')]
+    prefix = folder_name + '/' + prefix
     html_file = prefix+'.html'
     print(html_file)
     if os.path.exists(html_file):
@@ -355,22 +361,22 @@ which include video file, encoded file, package folder, and html file
 todo we need to include the MongoDB part for changing the name.
 '''
 def change_name(old, new):
-    old_prefix = old[:old.find('.')]
-    new_prefix = new[:new.find('.')]
-    old_encoded_arr = [owner + '/' + old_prefix+'_h264_1080p.mp4', owner+'/' + old_prefix+'_h264_240p.mp4', owner +
-                       '/'+old_prefix+'_h264_360p.mp4', owner+'/'+old_prefix+'_h264_480p.mp4', owner+'/'+old_prefix+'_h264_720p.mp4']
-    new_encoded_arr = [owner + '/'+new_prefix+'_h264_1080p.mp4', owner+'/'+new_prefix+'_h264_240p.mp4', owner +
-                       '/'+new_prefix+'_h264_360p.mp4', owner+'/'+new_prefix+'_h264_480p.mp4', owner+'/'+new_prefix+'_h264_720p.mp4']
+    old_prefix = old[:old.rfind('.')]
+    new_prefix = new[:new.rfind('.')]
+    old_encoded_arr = [folder_name + '/' + old_prefix+'_h264_1080p.mp4', folder_name+'/' + old_prefix+'_h264_240p.mp4', folder_name +
+                       '/'+old_prefix+'_h264_360p.mp4', folder_name+'/'+old_prefix+'_h264_480p.mp4', folder_name+'/'+old_prefix+'_h264_720p.mp4']
+    new_encoded_arr = [folder_name + '/'+new_prefix+'_h264_1080p.mp4', folder_name+'/'+new_prefix+'_h264_240p.mp4', folder_name +
+                       '/'+new_prefix+'_h264_360p.mp4', folder_name+'/'+new_prefix+'_h264_480p.mp4', folder_name+'/'+new_prefix+'_h264_720p.mp4']
     # name of file replacement
-    os.rename(owner + '/' + old, owner + '/' + new)
+    os.rename(folder_name + '/' + old, folder_name + '/' + new)
     # encoder replacement
     for i in range(0, 5):
         os.rename(old_encoded_arr[i], new_encoded_arr[i])
     # package replacement
-    os.rename(owner + '/' + old_prefix, owner + '/' + new_prefix)
+    os.rename(folder_name + '/' + old_prefix, folder_name + '/' + new_prefix)
     # html replacement
-    os.rename(owner + '/' + old_prefix + '.html',
-              owner + '/' + new_prefix+'.html')
+    os.rename(folder_name + '/' + old_prefix + '.html',
+              folder_name + '/' + new_prefix+'.html')
 
 '''
 Search the name from specific id in items
@@ -380,12 +386,22 @@ which includes all file info.
 def search_items(id, items):
     for item in items:
         item = item.split('\n')[:-1]
-        file_id = item[0][item[0].find(':')+2:]
-        name = item[1][item[1].find(':')+2:]
+        file_id = item[0][item[0].rfind(':')+2:]
+        name = item[1][item[1].rfind(':')+2:]
         if id == file_id:
             return name
     return None
-
+'''
+Search the name of folder to see if this folder exist or not
+'''
+def search_folder(items):
+    for item in items:
+        item = item.split('\n')[:-1]
+        name = item[1][item[1].rfind(':')+2:]
+        mime_type = item[3][item[3].rfind(':')+2:]
+        if mime_type == 'application/vnd.google-apps.folder' and name == folder_name:
+            return True
+    return False
 '''
 After a file is insert we dump the data-s and save status in the log file.
 Start download it, encode, package, chunk, and generate html file.
@@ -399,6 +415,26 @@ def new_file(file_coll,file_instance,file_id,creds,name):
        dump_data(file_coll)
        write_record(file_instance)
        driver_script(name, file_instance, file_coll)
+
+'''
+Construct a list with all info from google drive, and it should be call when process func is called
+'''
+def process_helper(creds):
+    update_token(creds)
+    g = u'gdrive --access-token ' + creds.token + u' list'
+    process = subprocess.Popen(g, shell=True, stdout=subprocess.PIPE)
+    output, err = process.communicate()
+    output_list = output.split('\n')[1:-1]
+    items = []
+    for file_info in output_list:
+        file_id = file_info.split()[0]
+       # file_id = file_id.encode("utf-8")
+        update_token(creds)
+        g = u'gdrive --access-token '+creds.token + u' info ' + file_id
+        process = subprocess.Popen(g, shell=True, stdout=subprocess.PIPE)
+        output, err = process.communicate()
+        items.append(output)
+    return items
 
 '''
 Using the gdrive command to list all file info
@@ -415,22 +451,9 @@ if the parent id is not in file_coll, we create it and add current file into it.
 '''
 def process(creds):
     # gdrive stuff to get meta data from each file
-    global owner
+    global folder_name
     global directory
-    update_token(creds)
-    g = u'gdrive --access-token ' + creds.token + u' list'
-    process = subprocess.Popen(g, shell=True, stdout=subprocess.PIPE)
-    output, err = process.communicate()
-    output_list = output.split('\n')[1:-1]
-    items = []
-    for file_info in output_list:
-        file_id = file_info.split()[0]
-       # file_id = file_id.encode("utf-8")
-        update_token(creds)
-        g = u'gdrive --access-token '+creds.token + u' info ' + file_id
-        process = subprocess.Popen(g, shell=True, stdout=subprocess.PIPE)
-        output, err = process.communicate()
-        items.append(output)
+    items = process_helper(creds)
     file_coll = None
     if os.path.exists(env_path + 'data-s'):
         with open(env_path + 'data-s', 'rb') as token:
@@ -446,22 +469,29 @@ def process(creds):
     if not items:
         print('No files found.')
     else:
+        while not search_folder(items):
+            print("This folder is not exist in google drive, please try another one")
+            folder_name = raw_input()
+            items = process_helper(creds)
         print('Files:')
+        print(items)
         for item in items:
             item = item.split('\n')[:-1]
             file_id = item[0][item[0].find(':')+2:]
             name = item[1][item[1].find(':')+2:]
             mime_type = item[3][item[3].find(':')+2:]
            # print(name,time,parent,file_id,mime_type,file_id)
+            print("The file name is " + name)
             if mime_type == 'application/vnd.google-apps.folder':
                if folder_name != name:
                    continue
                if file_id not in file_coll:
                     file_coll[file_id] = []
+                    dump_data(file_coll)
                     if not os.path.exists(name):
                         os.mkdir(name)
                continue
-            if mime_type.find('video') == -1:
+            if mime_type.rfind('video') == -1:
                 continue
             time = item[6][item[6].find(':')+2:]
             parent = item[9][item[9].find(':')+2:]
@@ -469,15 +499,19 @@ def process(creds):
             file_instance = myFile(
                 name, file_id, mime_type, dateutil.parser.parse(time), 'initial', parent)
             compare_coll.append(file_instance)
-            # this folder is here
+            # this file belongs to that folder.
+            parent_name = search_items(parent,items)
+            if parent_name != folder_name:
+                    continue
             if parent in file_coll:
                 record = file_coll[parent]
-                find = False
+                rfind = False
                 for re in record:
                     if re == file_instance:
-                        find = True
+                        rfind = True
                         # user modifies the name of file
                         if file_instance.get_time() > re.get_time():
+                            print("514th")
                             old_name = re.get_name()
                             change = True
                             re.set_time(file_instance.get_time())
@@ -485,29 +519,25 @@ def process(creds):
                             re.set_status('change name from ' + old_name)
                             dump_data(file_coll)
                             write_record(re)
-                            print("97th")
-                            owner = search_items(parent, items)
-                            print(owner)
-                            directory = 'cd '+owner+' && '
+                           # folder_name = search_items(parent, items)
+                            print(folder_name)
+                            directory = 'cd '+folder_name+' && '
                             change_name(old_name, file_instance.get_name())
-                if not find:
+                if not rfind:
                     # new file insert into this folder
-                    owner = search_items(parent, items)
-                    directory = 'cd '+owner+' && '
+                    #folder_name = folder_name
+                    print("529th")
+                    directory = 'cd '+folder_name+' && '
                     file_coll[parent].append(file_instance)
-                    print("495th")
                     new_file(file_coll,file_instance,file_id,creds,name)
             # create the new folder and insert the file into it
             else:
-                parent_name = search_items(parent,items)
-                if parent_name != folder_name:
-                    continue
+                print("535th")
                 file_coll[parent] = []
                 file_coll[parent].append(file_instance)
-                owner = parent_name
-                if not os.path.exists(owner):
-                    os.mkdir(owner)
-                directory = 'cd '+owner+' && '
+                if not os.path.exists(folder_name):
+                    os.mkdir(folder_name)
+                directory = 'cd '+folder_name+' && '
                 new_file(file_coll,file_instance,file_id,creds,name)
 
     for key in file_coll:
@@ -517,8 +547,8 @@ def process(creds):
                 # copy[key].append(fi)
             else:
                 delete_name = fi.get_name()
-                owner = search_items(fi.get_parent(),items)
-                directory = 'cd '+owner+' && '
+                #folder_name = search_items(fi.get_parent(),items)
+                directory = 'cd '+folder_name+' && '
                 delete(delete_name)
                 delete_encoder(delete_name)
                 delete_packager(delete_name)
@@ -579,6 +609,5 @@ if result.v == None:
 version = result.v[0]
 folder_name = result.n[0]
 print(version,folder_name)
-owner = ''
 directory = ''
 start()
