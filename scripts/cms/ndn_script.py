@@ -384,24 +384,15 @@ this items is created by the gdrive command
 which includes all file info.
 '''
 def search_items(id, items):
+    print(items)
     for item in items:
         item = item.split('\n')[:-1]
-        file_id = item[0][item[0].rfind(':')+2:]
-        name = item[1][item[1].rfind(':')+2:]
+        file_id = item[0][item[0].find(':')+2:]
+        name = item[1][item[1].find(':')+2:]
         if id == file_id:
             return name
     return None
-'''
-Search the name of folder to see if this folder exist or not
-'''
-def search_folder(items):
-    for item in items:
-        item = item.split('\n')[:-1]
-        name = item[1][item[1].rfind(':')+2:]
-        mime_type = item[3][item[3].rfind(':')+2:]
-        if mime_type == 'application/vnd.google-apps.folder' and name == folder_name:
-            return True
-    return False
+
 '''
 After a file is insert we dump the data-s and save status in the log file.
 Start download it, encode, package, chunk, and generate html file.
@@ -420,20 +411,41 @@ def new_file(file_coll,file_instance,file_id,creds,name):
 Construct a list with all info from google drive, and it should be call when process func is called
 '''
 def process_helper(creds):
-    update_token(creds)
-    g = u'gdrive --access-token ' + creds.token + u' list'
+    update_token(creds) 
+    query = '\"'+ 'name = ' + '\'' +  folder_name   + '\''   + '\"' 
+    g = u'gdrive --access-token ' + creds.token + u' list -q ' + query
+    print(g)
     process = subprocess.Popen(g, shell=True, stdout=subprocess.PIPE)
     output, err = process.communicate()
     output_list = output.split('\n')[1:-1]
     items = []
+    file_info = None
     for file_info in output_list:
-        file_id = file_info.split()[0]
-       # file_id = file_id.encode("utf-8")
+        if file_info.split()[2] == "dir":
+           break
+    if file_info == None:
+        return []
+    file_id = file_info.split()[0]
+    update_token(creds)
+    query = '\"'+ 'parents = ' + '\'' +  file_id   + '\''   + '\"' 
+    g = u'gdrive --access-token ' + creds.token + u' list -q ' + query
+    process = subprocess.Popen(g, shell=True, stdout=subprocess.PIPE)
+    output, err = process.communicate()
+    output_list = output.split('\n')[1:-1]
+    for data in output_list:
+        id = data.split()[0]
         update_token(creds)
-        g = u'gdrive --access-token '+creds.token + u' info ' + file_id
+        g = u'gdrive --access-token '+creds.token + u' info ' + id
         process = subprocess.Popen(g, shell=True, stdout=subprocess.PIPE)
         output, err = process.communicate()
-        items.append(output)
+        if output.startswith("Id:"):
+           items.append(output)
+    
+    update_token(creds)
+    g = u'gdrive --access-token '+creds.token + u' info ' + file_id
+    process = subprocess.Popen(g, shell=True, stdout=subprocess.PIPE)
+    output, err = process.communicate()
+    items.append(output)
     return items
 
 '''
@@ -454,6 +466,10 @@ def process(creds):
     global folder_name
     global directory
     items = process_helper(creds)
+    while not items:
+        print("This folder is not exist in google drive, please try another one")
+        folder_name = raw_input()
+        items = process_helper(creds)
     file_coll = None
     if os.path.exists(env_path + 'data-s'):
         with open(env_path + 'data-s', 'rb') as token:
@@ -463,16 +479,11 @@ def process(creds):
         # print(file_coll)
     else:
         file_coll = {}
-    change = False
     # checking if we delete anything
     compare_coll = []
     if not items:
         print('No files found.')
     else:
-        while not search_folder(items):
-            print("This folder is not exist in google drive, please try another one")
-            folder_name = raw_input()
-            items = process_helper(creds)
         print('Files:')
         print(items)
         for item in items:
@@ -511,9 +522,8 @@ def process(creds):
                         rfind = True
                         # user modifies the name of file
                         if file_instance.get_time() > re.get_time():
-                            print("514th")
+                            print("533th")
                             old_name = re.get_name()
-                            change = True
                             re.set_time(file_instance.get_time())
                             re.set_name(file_instance.get_name())
                             re.set_status('change name from ' + old_name)
@@ -526,13 +536,13 @@ def process(creds):
                 if not rfind:
                     # new file insert into this folder
                     #folder_name = folder_name
-                    print("529th")
+                    print("549th")
                     directory = 'cd '+folder_name+' && '
                     file_coll[parent].append(file_instance)
                     new_file(file_coll,file_instance,file_id,creds,name)
             # create the new folder and insert the file into it
             else:
-                print("535th")
+                print("555th")
                 file_coll[parent] = []
                 file_coll[parent].append(file_instance)
                 if not os.path.exists(folder_name):
