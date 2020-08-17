@@ -494,13 +494,6 @@ def process(creds):
            # print(name,time,parent,file_id,mime_type,file_id)
             print("The file name is " + name)
             if mime_type == 'application/vnd.google-apps.folder':
-               if folder_name != name:
-                   continue
-               if file_id not in file_coll:
-                    file_coll[file_id] = []
-                    dump_data(file_coll)
-                    if not os.path.exists(name):
-                        os.mkdir(name)
                continue
             if mime_type.rfind('video') == -1:
                 continue
@@ -511,9 +504,6 @@ def process(creds):
                 name, file_id, mime_type, dateutil.parser.parse(time), 'initial', parent)
             compare_coll.append(file_instance)
             # this file belongs to that folder.
-            parent_name = search_items(parent,items)
-            if parent_name != folder_name:
-                    continue
             if parent in file_coll:
                 record = file_coll[parent]
                 rfind = False
