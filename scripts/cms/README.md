@@ -18,6 +18,8 @@ This script needs two options when you want to run it.
 -v means version (you should choose from either info or debug)
 -n means the name of folder (the name of folder in google drive)
 For example if you want to run it in info mode with folder ndn you should apply python ndn_script.py -v info -n ndn
+-d means delete all uncessary files from current working directory (you should choose from yes or no)
+-r means recover if any middle step fail from previous turn (you should choose from yes or no) 
 You can also use python ndn_script.py -h or python ndn_script.py --help to check usage.
 
 Some features of this script:
