@@ -296,13 +296,20 @@ Check if the log file is up to date
 def check_log(file_coll):
     with open('file_record.txt') as f:
         content = f.readlines()
-    last_place = content[-1]
-    last_status = last_place.split()[5]
-    last_id = last_place.split()[1]
-    last_name = last_place.split()[2]
-    last_type = last_place.split()[0]
-    last_time = last_place.split()[3] + ' ' + last_place.split()[4]
-    last_parent = last_place.split()[6]
+    #last_place = content[-1]
+    content.reverse()
+    last_place = ''
+    for line in content:
+        if line.startswith("file-descirption:"):
+           last_place = line
+           break
+    last_status = last_place.split()[6]
+    last_id = last_place.split()[2]
+    last_name = last_place.split()[3]
+    last_type = last_place.split()[1]
+    last_time = last_place.split()[4] + ' ' + last_place.split()[4]
+    last_parent = last_place.split()[7]
+    print(last_status,last_id,last_name,last_type,last_time,last_parent)
     find = False
     for parent in file_coll:
         for file in file_coll[parent]:
@@ -422,7 +429,7 @@ def check_status(file_coll, creds, items):
                    html1(name, file_instance, file_coll)
                    html2(name, file_instance, file_coll)
                 else:
-                    if file_instance.get_status() == 'web1':
+                    if status == 'web1':
                        html2(name, file_instance, file_coll)
 
 '''
@@ -494,15 +501,19 @@ def change_name(old, new):
     new_encoded_arr = [folder_name + '/'+new_prefix+'_h264_1080p.mp4', folder_name+'/'+new_prefix+'_h264_240p.mp4', folder_name +
                        '/'+new_prefix+'_h264_360p.mp4', folder_name+'/'+new_prefix+'_h264_480p.mp4', folder_name+'/'+new_prefix+'_h264_720p.mp4']
     # name of file replacement
-    os.rename(folder_name + '/' + old, folder_name + '/' + new)
+    if os.path.exists(folder_name + '/' + old):
+         os.rename(folder_name + '/' + old, folder_name + '/' + new)
     # encoder replacement
     for i in range(0, 5):
-        os.rename(old_encoded_arr[i], new_encoded_arr[i])
+       if os.path.exists(old_encoded_arr[i]):
+          os.rename(old_encoded_arr[i], new_encoded_arr[i])
     # package replacement
-    os.rename(folder_name + '/' + old_prefix, folder_name + '/' + new_prefix)
+    if os.path.exists(folder_name + '/' + old_prefix):
+         os.rename(folder_name + '/' + old_prefix, folder_name + '/' + new_prefix)
     # html replacement
-    os.rename(folder_name + '/' + old_prefix + '.html',
-              folder_name + '/' + new_prefix+'.html')
+    if os.path.exists(folder_name + '/' + old_prefix + '.html'):
+            os.rename(folder_name + '/' + old_prefix + '.html',
+                folder_name + '/' + new_prefix+'.html')
 
 '''
 Search the name from specific id in items
@@ -641,27 +652,26 @@ def process(creds):
                         rfind = True
                         # user modifies the name of file
                         if file_instance.get_time() > re.get_time():
-                            print("533th")
+                            print("655th")
                             old_name = re.get_name()
-                            re.set_time(file_instance.get_time())
-                            re.set_name(file_instance.get_name())
-                            re.set_status('change name from ' + old_name)
-                            dump_data(file_coll)
-                            write_record(re)
-                           # folder_name = search_items(parent, items)
                             print(folder_name)
                             directory = 'cd '+folder_name+' && '
                             change_name(old_name, file_instance.get_name())
+                            re.set_time(file_instance.get_time())
+                            re.set_name(file_instance.get_name())
+                            re.set_status('updated')
+                            dump_data(file_coll)
+                            write_record(re)
                 if not rfind:
                     # new file insert into this folder
                     #folder_name = folder_name
-                    print("549th")
+                    print("668th")
                     directory = 'cd '+folder_name+' && '
                     file_coll[parent].append(file_instance)
                     new_file(file_coll,file_instance,file_id,creds,name)
             # create the new folder and insert the file into it
             else:
-                print("555th")
+                print("674th")
                 file_coll[parent] = []
                 file_coll[parent].append(file_instance)
                 if not os.path.exists(folder_name):
@@ -683,9 +693,9 @@ def process(creds):
                 delete_packager(delete_name)
                 delete_html(delete_name)
                 fi.set_status('deleted')
-                write_record(fi)
                 file_coll[key].remove(fi)
                 dump_data(file_coll)
+                write_record(fi)
 
     # write_record(file_coll)
 
