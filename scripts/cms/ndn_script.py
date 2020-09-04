@@ -14,6 +14,8 @@ import dateutil.parser
 import sys
 from google_auth_oauthlib.flow import InstalledAppFlow
 from google.auth.transport.requests import Request
+from googleapiclient.discovery import build
+from googleapiclient.http import MediaIoBaseDownload
 from MY_FILE import myFile
 from MY_FILE import bcolors
 # If modifying these scopes, delete the file token.pickle.
@@ -25,32 +27,27 @@ everytime before run the gdrive command, we need to check the
 token is fresh, if it is not, we need to update it.
 and it return the value from gdrive command.
 '''
-def download(id, creds):
-    print(bcolors.HEADER + "download is starting right now" + bcolors.ENDC)
-    id = id.encode("utf-8")
-    directorys = directory.encode("utf-8")
-    update_token(creds)
-    g = directorys + 'gdrive --access-token ' + \
-        creds.token + ' download --force ' + id
-    #print(g)
-    process = None
-    output = None
-    err = None
-    if version == 'debug':
-      # with open(env_path + 'file_record.txt', 'a') as log
-        process = subprocess.Popen(g, shell=True,stderr = subprocess.PIPE,stdout =log)
-        output,err = process.communicate()
-        if err:
-            write_rdebug_record(err)
-    else:
-       process = subprocess.Popen(g, shell=True,stderr = subprocess.PIPE,stdout = fp)
-       output, err = process.communicate()
-    rc = process.returncode
-    if rc !=0:
-       print(bcolors.WARNING + err + bcolors.ENDC)
-    else:
-       print(bcolors.OKBLUE +"download is completed" + bcolors.ENDC)
-    return rc
+def download(id, creds,file_name):
+  name = './' + folder_name + '/' + file_name
+  update_token(creds)
+  drive_service = build('drive', 'v3', credentials=creds)
+  try:
+        request = drive_service.files().get_media(fileId=id)
+        fh = io.FileIO(name,'wb')
+        downloader = MediaIoBaseDownload(fh, request)
+        done = False
+        print(bcolors.HEADER + "download is starting right now" + bcolors.ENDC)
+        while done is False:
+            status, done = downloader.next_chunk()
+            print ("Download %d%%." % int(status.progress() * 100))
+        
+  except Exception,e:
+      print(bcolors.WARNING + "download is not completed" + bcolors.ENDC)
+      print(bcolors.WARNING + e + bcolors.ENDC)
+      write_rdebug_record(e)
+      return -1
+  print(bcolors.OKBLUE +"download is completed" + bcolors.ENDC)
+  return 0
 
 '''
 Write the status of file when it updates.
@@ -123,7 +120,8 @@ def chunker(file_name, file_instance, file_coll):
     segmentSize = '8000'
     chunker = (directory + 'chunker ' + base + '/' + file_name_prefix + ' -i '
                + pwd + '/' + file_name_prefix + ' -s '
-               + segmentSize + ' -e ' + version + ' && wait')
+               + segmentSize + ' -e ' + version + ' 2> .driver.stderr')
+    print(chunker)
     if driver_script_helper(chunker,"chunk") == 0:
        # print('chunked alreay in here')
         file_instance.set_status('chunked')
@@ -144,7 +142,7 @@ change the status to encoded if success.
 '''
 def encode(file_name, file_instance, file_coll):
     print(bcolors.HEADER +"encoding is starting right now"+bcolors.ENDC)
-    encode = directory + env_path + '../../video/transcoder.sh ' + file_name + ' && wait'
+    encode = directory + env_path + '../../video/transcoder.sh ' + file_name + ' 2> .driver.stderr'
     print(encode)
     if driver_script_helper(encode,"encode") == 0:
         file_instance.set_status('encoded')
@@ -171,7 +169,8 @@ def packaged(file_name, file_instance, file_coll):
     playlist = 'playlist.m3u8'
     package = (pwd1+' ' + '.'+' ' + file_name_prefix + ' '
                + pwd + file_name_prefix + '/' + protocol + ' '
-               + protocol + ' && wait')
+               + protocol + ' 2> .driver.stderr')
+    print(package)
     if driver_script_helper(package,"package") == 0:
         file_instance.set_status('packaged')
         dump_data(file_coll)
@@ -240,9 +239,11 @@ using the process to run the command and return the value from that command.
 '''
 def driver_script_helper(command,stage):
    # fp = open(os.devnull, 'w') as fp:
+    print("240th")
     process = None
     output = None
     err = None
+    rv = 0
     if version == 'debug':
       # with open(env_path + 'file_record.txt', 'a') as log
         process = subprocess.Popen(command, shell=True,stderr = subprocess.PIPE,stdout =log)
@@ -252,7 +253,12 @@ def driver_script_helper(command,stage):
     else:
        process = subprocess.Popen(command, shell=True,stderr = subprocess.PIPE,stdout = fp)
        output, err = process.communicate()
-    rc = process.returncode
+       if err: 
+          print("255th\n")
+          rv = 1
+       
+
+    rc = process.returncode or rv
     print('--------------------'+str(rc))
     if rc !=0:
         print(bcolors.WARNING + "This error occurs when current stage is "+stage + bcolors.ENDC)
@@ -290,41 +296,6 @@ def check_encoded_number(prefix):
         if os.path.exists(i):
             num += 1
     return num
-'''
-Check if the log file is up to date
-'''
-def check_log(file_coll):
-    with open('file_record.txt') as f:
-        content = f.readlines()
-    #last_place = content[-1]
-    content.reverse()
-    last_place = ''
-    for line in content:
-        if line.startswith("file-descirption:"):
-           last_place = line
-           break
-    last_status = last_place.split()[6]
-    last_id = last_place.split()[2]
-    last_name = last_place.split()[3]
-    last_type = last_place.split()[1]
-    last_time = last_place.split()[4] + ' ' + last_place.split()[4]
-    last_parent = last_place.split()[7]
-    print(last_status,last_id,last_name,last_type,last_time,last_parent)
-    find = False
-    for parent in file_coll:
-        for file in file_coll[parent]:
-            if file.get_id() == last_id:
-                find = True
-                if file.get_status() != last_status:
-                    write_record(file)
-                    return 
-    if not find:
-        if last_status != 'deleted':
-            added =  file_instance = myFile(
-                last_name, last_id, last_type, last_time, 'deleted', last_parent)
-            write_record(added)
-    
-
     
 '''
 Check the file status from file_coll, because this script should resume the
@@ -371,7 +342,7 @@ def check_status(file_coll, creds, items):
                dump_data(file_coll)
                write_record(file_instance)
             if status == 'initial':
-                rv = download(file_id, creds)
+                rv = download(file_id, creds,name)
                 if rv == 0:
                    file_instance.set_status("download")
                    dump_data(file_coll)
@@ -385,7 +356,7 @@ def check_status(file_coll, creds, items):
                     print("the file is exist in the disk")
                     pass
                 else:
-                    rv = download(file_id, creds)
+                    rv = download(file_id, creds,name)
                 if check_encoded_number(prefix) > 0:
                     delete_encoder(name)
                 if rv == 0:
@@ -523,9 +494,9 @@ which includes all file info.
 def search_items(id, items):
     #print(items)
     for item in items:
-        item = item.split('\n')[:-1]
-        file_id = item[0][item[0].find(':')+2:]
-        name = item[1][item[1].find(':')+2:]
+        item = item.strip()
+        file_id = item.split()[1]
+        name = item.split()[0]
         if id == file_id:
             return name
     return None
@@ -537,7 +508,7 @@ Start download it, encode, package, chunk, and generate html file.
 def new_file(file_coll,file_instance,file_id,creds,name):
     dump_data(file_coll)
     write_record(file_instance)
-    rv = download(file_id, creds)
+    rv = download(file_id, creds,name)
     if rv == 0:
        file_instance.set_status("download")
        dump_data(file_coll)
@@ -548,43 +519,34 @@ def new_file(file_coll,file_instance,file_id,creds,name):
 Construct a list with all info from google drive, and it should be call when process func is called
 '''
 def process_helper(creds):
-    update_token(creds) 
-    query = '\"'+ 'name = ' + '\'' +  folder_name   + '\''   + '\"' 
-    g = 'gdrive --access-token ' + creds.token + ' list -q ' + query
-    #print(g)
-    process = subprocess.Popen(g, shell=True, stdout=subprocess.PIPE)
-    output, err = process.communicate()
-    output_list = output.split('\n')[1:-1]
-    items = []
-    file_info = None
-    for file_info in output_list:
-        if file_info.split()[2] == "dir":
-           break
-    if file_info == None:
-        return []
-    file_id = file_info.split()[0]
-    update_token(creds)
-    query = '\"'+ 'parents = ' + '\''+file_id + '\'' + ' and trashed = false' +'\"'
-    g = 'gdrive --access-token ' + creds.token + ' list -q ' + query
-    #print(g)
-    process = subprocess.Popen(g, shell=True, stdout=subprocess.PIPE)
-    output, err = process.communicate()
-    output_list = output.split('\n')[1:-1]
-    #print(output_list)
-    for data in output_list:
-        id = data.split()[0]
-        update_token(creds)
-        g = 'gdrive --access-token '+creds.token + ' info ' + id
-        process = subprocess.Popen(g, shell=True, stdout=subprocess.PIPE)
-        output, err = process.communicate()
-        if output.startswith("Id:"):
-           items.append(output)
     
     update_token(creds)
-    g = 'gdrive --access-token '+creds.token + ' info ' + file_id
-    process = subprocess.Popen(g, shell=True, stdout=subprocess.PIPE)
-    output, err = process.communicate()
-    items.append(output)
+    drive_service = build('drive', 'v3', credentials=creds)
+    items = []
+    page_token = None
+    parent_id = ''
+    parent_info = ''
+    query = "mimeType = 'application/vnd.google-apps.folder' and name=" + '\'' + folder_name + '\''
+    response = drive_service.files().list(q= query,
+                                          spaces='drive',
+                                          fields='nextPageToken, files(id, name, modifiedTime, parents,mimeType)',
+                                          pageToken=page_token).execute()
+    for file in response.get('files', []):
+           print(file.get('name'), file.get('id'),file.get('modifiedTime'),file.get('parents')[0],file.get('mimeType'))
+           parent_info = file.get('name') + '   ' + file.get('id') + '   ' + file.get('modifiedTime') + '   ' + file.get('parents')[0] + '   '+file.get('mimeType')+'\n'
+           parent_id = file.get('id')
+           items.append(parent_info)
+    if items == []:
+        return items
+    query = "parents =" + '\'' + parent_id + '\'' + ' and trashed = false'
+    response = drive_service.files().list(q= query,
+                                          spaces='drive',
+                                          fields='nextPageToken, files(id, name, modifiedTime, parents,mimeType)',
+                                          pageToken=page_token).execute()
+    for file in response.get('files', []):
+           print(file.get('name'), file.get('id'),file.get('modifiedTime'),file.get('parents')[0],file.get('mimeType'))
+           info = file.get('name') + '   ' + file.get('id') + '   ' + file.get('modifiedTime') + '   ' + file.get('parents')[0] + '   '+file.get('mimeType') + '\n'
+           items.append(info)
     return items
 
 '''
@@ -614,7 +576,6 @@ def process(creds):
         with open('data-s', 'rb') as token:
             file_coll = pickle.load(token)
             #print(file_coll)
-        check_log(file_coll)
         check_status(file_coll, creds, items)
         # print(file_coll)
     else:
@@ -625,20 +586,20 @@ def process(creds):
         print('No files found.')
     else:
         print('Files:')
-       # print(items)
+        print(items)
         for item in items:
-            item = item.split('\n')[:-1]
-            file_id = item[0][item[0].find(':')+2:]
-            name = item[1][item[1].find(':')+2:]
-            mime_type = item[3][item[3].find(':')+2:]
+            item = item.strip()
+            file_id = item.split()[1]
+            name = item.split()[0]
+            mime_type = item.split()[4]
            # print(name,time,parent,file_id,mime_type,file_id)
-            print("The file name is " + name)
+           # print("The file name is " + name)
             if mime_type == 'application/vnd.google-apps.folder':
                continue
             if mime_type.rfind('video') == -1:
                 continue
-            time = item[6][item[6].find(':')+2:]
-            parent = item[9][item[9].find(':')+2:]
+            time = item.split()[2]
+            parent = item.split()[3]
            # print('80th   ' + parent)
             file_instance = myFile(
                 name, file_id, mime_type, dateutil.parser.parse(time), 'initial', parent)
