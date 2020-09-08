@@ -18,6 +18,7 @@ from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseDownload
 from MY_FILE import myFile
 from MY_FILE import bcolors
+import mongodb_api
 # If modifying these scopes, delete the file token.pickle.
 SCOPES = ['https://www.googleapis.com/auth/drive']
 #SCOPES = ['https://www.googleapis.com/auth/drive.file']
@@ -448,6 +449,12 @@ def delete_html(file_name):
     if os.path.exists(html_file):
         os.remove(html_file)
 '''
+Delete data in Mongodb
+'''
+def delete_mongodb(file_name):
+    prefix = file_name[:file_name.rfind('.')]
+    purge(prefix)
+'''
 Clear the current working directory
 '''
 def clear_pwd(path):
@@ -481,6 +488,8 @@ def change_name(old, new):
     # package replacement
     if os.path.exists(folder_name + '/' + old_prefix):
          os.rename(folder_name + '/' + old_prefix, folder_name + '/' + new_prefix)
+    # chunk in mongodb
+    update(old_prefix,new_prefix)
     # html replacement
     if os.path.exists(folder_name + '/' + old_prefix + '.html'):
             os.rename(folder_name + '/' + old_prefix + '.html',
@@ -652,6 +661,7 @@ def process(creds):
                 delete(delete_name)
                 delete_encoder(delete_name)
                 delete_packager(delete_name)
+                delete_mongodb(delete_name)
                 delete_html(delete_name)
                 fi.set_status('deleted')
                 file_coll[key].remove(fi)
